@@ -1,0 +1,17 @@
+---
+name: EcoRanks
+version: 1.0.0
+author: pineypiney
+main: com.pineypiney.eco_ranks.EcoRanks
+api-version: 1.18
+prefix: EcoRanks
+softdepend:
+  - Vault
+  - LuckPerms
+commands:
+  ecoranks:
+    description: Prefix to all EcoRanks commands
+    usage: /<command> <subcommand>
+    aliases: []
+    permission: ecoranks.ecoranks
+    permission-message: You do not have permission to use EcoRanks commands

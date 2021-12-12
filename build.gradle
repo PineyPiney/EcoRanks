@@ -1,0 +1,86 @@
+import org.yaml.snakeyaml.Yaml
+
+buildscript {
+    repositories{
+        mavenCentral()
+    }
+
+    dependencies {
+        // SnakeYaml
+        classpath group: 'org.yaml', name: 'snakeyaml', version: '1.29'
+    }
+}
+
+plugins {
+    id 'java'
+}
+
+def pluginFile = new File("src\\main\\resources\\plugin.yml")
+def pluginYaml = new Yaml().load(pluginFile.newInputStream())
+
+
+// ------------ Outputs file to correct location -------------------------------
+
+compileJava {
+
+    options.compilerArgs << "-s"
+    options.compilerArgs << "C:\\Users\\james\\AppData\\Roaming\\.minecraft\\Servers\\Spigot Server\\plugins"
+
+    doFirst {
+        // make sure that directory exists
+        file(new File("C:\\Users\\james\\AppData\\Roaming\\.minecraft\\Servers\\Spigot Server\\plugins")).mkdirs()
+    }
+}
+
+sourceSets {
+    generated {
+        java {
+            srcDir "C:\\Users\\james\\AppData\\Roaming\\.minecraft\\Servers\\Spigot Server\\plugins"
+        }
+    }
+}
+
+// -------------------------------------------------------------------------
+
+group 'com.pineypiney.eco_ranks'
+version pluginYaml.version
+
+// https://www.spigotmc.org/wiki/spigot-gradle/
+
+repositories {
+    maven{
+        url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+
+        content {
+            includeGroup 'org.bukkit'
+            includeGroup 'org.spigotmc'
+        }
+    }
+
+    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
+    maven { url = 'https://oss.sonatype.org/content/repositories/central' }
+
+    // For vault
+    maven { url 'https://jitpack.io' }
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+
+    // Annotations like @NotNull and @Nullable
+    compileOnly 'org.jetbrains:annotations:22.0.0'
+
+    compileOnly 'org.spigotmc:spigot-api:1.18-R0.1-SNAPSHOT' // The Spigot API with no shadowing. Requires the OSS repo.
+
+    // Vault
+    compileOnly "com.github.MilkBowl:VaultAPI:1.7"
+
+    // Luck Perms
+    compileOnly 'net.luckperms:api:5.3'
+}
+
+test {
+    useJUnitPlatform()
+}
