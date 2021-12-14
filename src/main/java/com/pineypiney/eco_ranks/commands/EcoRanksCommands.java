@@ -47,7 +47,7 @@ public class EcoRanksCommands implements CommandExecutor {
                         else sender.sendMessage("You do not have permission to reload the ranks");
                     }
 
-                    // If their are subcommands but none of them are defined the user probably made a typo
+                    // If there are subcommands but none of them are defined the user probably made a typo
                     default -> sender.sendMessage("This command does not exist");
                 }
             }

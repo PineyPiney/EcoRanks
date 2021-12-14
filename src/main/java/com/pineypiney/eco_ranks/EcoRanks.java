@@ -9,6 +9,7 @@ import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.MemoryConfiguration;
 import org.bukkit.configuration.MemorySection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -36,9 +37,15 @@ public class EcoRanks extends JavaPlugin {
     private final Map<String, Float> bals = new HashMap<>();
 
     private static final Set<Rank> ranks = new HashSet<>();
+
     private static String rankupMessage = "You have been added to rank ${rank}!";
-    private static boolean global_broadcast = false;
-    private static boolean action_bar = false;
+    private static String rankupMessage_ = "You have been removed from rank ${rank}!";
+    private static boolean globalBroadcast = false;
+    private static boolean globalBroadcast_ = false;
+    private static boolean actionBar = false;
+    private static boolean actionBar_ = false;
+
+    private static boolean removable = false;
 
     @Override
     public void onLoad() {
@@ -53,13 +60,13 @@ public class EcoRanks extends JavaPlugin {
         // Loading APIs
 
         if(!setupVault()){
-            logWarn("Could not load the economy, disabling plugin");
+            logError("Could not load the economy, disabling plugin");
             manager.disablePlugin(this);
             return;
         }
 
         if(!setupLuckPerms()){
-            logWarn("Could not load LuckPerms, disabling plugin");
+            logError("Could not load LuckPerms, disabling plugin");
             manager.disablePlugin(this);
             return;
         }
@@ -68,7 +75,7 @@ public class EcoRanks extends JavaPlugin {
         // Custom Events
 
         if(!setupBalListener()){
-            logWarn("Could not make an economy listener event, disabling plugin");
+            logError("Could not make an economy listener event, disabling plugin");
             manager.disablePlugin(this);
             return;
         }
@@ -77,7 +84,7 @@ public class EcoRanks extends JavaPlugin {
 
         manager.registerEvents(new EcoRanksEvents(), this);
 
-        loadCommand("ecoranks");
+        loadCommand();
 
         logInfo(ChatColor.GREEN, "Plugin is Enabled");
     }
@@ -102,17 +109,15 @@ public class EcoRanks extends JavaPlugin {
         FileConfiguration config = this.getConfig();
 
         // First read all the generic data
-        if(config.get("rankup_message") instanceof String s){
-            rankupMessage = s;
-        }
+        rankupMessage = getDefaultVariable(config, "rankup_message", String.class, rankupMessage);
+        rankupMessage_ = getDefaultVariable(config, "rankup_message_", String.class, rankupMessage_);
+        globalBroadcast = getDefaultVariable(config, "global_broadcast", Boolean.class, globalBroadcast);
+        globalBroadcast_ = getDefaultVariable(config, "global_broadcast_", Boolean.class, globalBroadcast_);
+        actionBar = getDefaultVariable(config, "action_bar", Boolean.class, actionBar);
+        actionBar_ = getDefaultVariable(config, "action_bar_", Boolean.class, actionBar_);
+        removable = getDefaultVariable(config, "removable", Boolean.class, removable);
 
-        if(config.get("global_broadcast") instanceof Boolean b){
-            global_broadcast = b;
-        }
 
-        if(config.get("action_bar") instanceof Boolean b){
-            action_bar = b;
-        }
 
         // Empty current values in ranks
         ranks.clear();
@@ -123,18 +128,27 @@ public class EcoRanks extends JavaPlugin {
             Set<String> ids = configRanks.getKeys(false);
             for(String id : ids){
 
+                Class<List<String>> listClass = (Class<List<String>>)(Class<?>)List.class;
+
                 // Get variables from the config file
-                String name = getRankVariable(configRanks, id, "name", id);
-                float value = getRankVariable(configRanks, id, "value", (Number)Float.MAX_VALUE).floatValue();
-                List<String> serverCommands = getRankVariable(configRanks, id, "server_commands", new ArrayList<>());
-                List<String> playerCommands = getRankVariable(configRanks, id, "player_commands", new ArrayList<>());
-                String message = getRankVariable(configRanks, id, "rankup_message", rankupMessage);
-                boolean broadcast = getRankVariable(configRanks, id, "global_broadcast", global_broadcast);
-                boolean actionBar = getRankVariable(configRanks, id, "action_bar", action_bar);
+                String name = getRankVariable(configRanks, id, "name", String.class, id);
+                float value = getRankVariable(configRanks, id, "value", Number.class, Float.MAX_VALUE).floatValue();
+                List<String> serverCommands = getRankVariable(configRanks, id, "server_commands", listClass, new ArrayList<>());
+                List<String> serverCommands_ = getRankVariable(configRanks, id, "server_commands_", listClass, new ArrayList<>());
+                List<String> playerCommands = getRankVariable(configRanks, id, "player_commands", listClass, new ArrayList<>());
+                List<String> playerCommands_ = getRankVariable(configRanks, id, "player_commands_", listClass, new ArrayList<>());
+                String message = getRankVariable(configRanks, id, "rankup_message", String.class, EcoRanks.rankupMessage);
+                String message_ = getRankVariable(configRanks, id, "rankup_message_", String.class, EcoRanks.rankupMessage_);
+                boolean broadcast = getRankVariable(configRanks, id, "global_broadcast", Boolean.class, EcoRanks.globalBroadcast);
+                boolean broadcast_ = getRankVariable(configRanks, id, "global_broadcast_", Boolean.class, EcoRanks.globalBroadcast_);
+                boolean actionBar = getRankVariable(configRanks, id, "action_bar", Boolean.class, EcoRanks.actionBar);
+                boolean actionBar_ = getRankVariable(configRanks, id, "action_bar_", Boolean.class, EcoRanks.actionBar_);
+
+                boolean removable = getRankVariable(configRanks, id, "removable", Boolean.class, EcoRanks.removable);
 
                 // Create a new rank out of those variables and add it to the set
-                Rank newRank = new Rank(name, value, serverCommands, playerCommands, message, broadcast, actionBar);
-                logInfo(ChatColor.AQUA, "Create rank " + newRank);
+                Rank newRank = new Rank(name, value, serverCommands, serverCommands_, playerCommands, playerCommands_, message, message_, broadcast, broadcast_, actionBar, actionBar_, removable);
+                logInfo(ChatColor.AQUA, "Created rank " + newRank);
                 ranks.add(newRank);
             }
         }
@@ -145,16 +159,21 @@ public class EcoRanks extends JavaPlugin {
 
             logInfo("Cannot find any ranks to load, generating some example ranks");
 
-            ranks.add(new Rank("example_rank", 1000, new String[]{"give ${player} diamond 1", "time set 6000"}, new String[]{"me earned a new rank"}, "&6You earned the rank ${rank_display} and now have the ${rank_prefix} prefix!", false, true));
+            ranks.add(new Rank("example_rank", 1000, new String[]{"give ${player} diamond 1", "time set 6000"}, new String[]{"give ${player} dead_bush 1"}, new String[]{"me earned a new rank"}, new String[]{}, "&6You earned the rank ${rank_display} and now have the ${rank_prefix} prefix!", "&7You lost the rank ${rank_display} :(", false, false, true, false, true));
             ranks.add(new Rank("another_rank", 7500));
-            ranks.add(new Rank("camel_rank", 300, new String[]{}, new String[]{}, "${player_display} earned a Rank!", true, false));
+            ranks.add(new Rank("camel_rank", 300, new String[]{}, new String[]{}, "${player_display} earned a Rank!", true, false, false));
 
-            Rank[] r = new Rank[3];
-            ranks.toArray(r);
+            for(Rank rank : ranks){
+                switch (rank.getRankName()) {
+                    case "example_rank" -> config.addDefaults(rank.toHashMap("ranks.Example Rank"));
+                    case "another_rank" -> config.addDefaults(rank.toHashMap("ranks.Another Rank"));
+                    default -> config.addDefaults(rank.toHashMap("ranks.Camel Rank"));
+                }
+            }
 
-            config.addDefaults(r[0].toHashMap("ranks.camelCaseRank"));
-            config.addDefaults(r[1].toHashMap("ranks.example_rank"));
-            config.addDefaults(r[2].toHashMap("ranks.another_rank"));
+            if(ranks.isEmpty()) EcoRanks.logWarn("Could not load ranks from config file");
+
+
             config.options().copyDefaults(true);
             saveConfig();
         }
@@ -216,10 +235,10 @@ public class EcoRanks extends JavaPlugin {
     }
 
     // Set the executor for a command
-    private void loadCommand(String name){
-        PluginCommand command = getCommand(name);
+    private void loadCommand(){
+        PluginCommand command = getCommand("ecoranks");
         if(command != null) command.setExecutor(new EcoRanksCommands());
-        else logWarn("Could not find definition for command /" + name);
+        else logWarn("Could not find definition for command /ecoranks");
 
     }
 
@@ -256,11 +275,32 @@ public class EcoRanks extends JavaPlugin {
         return ranks;
     }
 
+    public static <T> T getDefaultVariable(MemoryConfiguration config, String variable, Class<T> clazz, T defaultValue){
+        Object value = config.get(variable);
+        if(value == null) return defaultValue;
+
+        try{
+            return clazz.cast(value);
+        }
+        catch (ClassCastException e){
+            logWarn("Cannot cast " + value + " to " + clazz);
+            return defaultValue;
+        }
+    }
+
     // Retrieve a variable for a rank from a yml format
-    public static <T> T getRankVariable(MemorySection ranks, String rankId, String variableName, T defaultValue){
+    public static <T> T getRankVariable(MemorySection ranks, String rankId, String variableName, Class<T> clazz, T defaultValue){
         Object value = ranks.get(rankId + "." + variableName);
         if(value == null) return defaultValue;
-        return (T) value;
+
+        try{
+            return clazz.cast(value);
+        }
+        catch (ClassCastException e){
+            logWarn("Cannot cast " + value + " to " + defaultValue.getClass());
+            return defaultValue;
+        }
+
     }
 
     // Getters for the default values in ranks
@@ -268,12 +308,28 @@ public class EcoRanks extends JavaPlugin {
         return rankupMessage;
     }
 
+    public static String getRankupMessage_() {
+        return rankupMessage_;
+    }
+
     public static boolean isBroadcastGlobal() {
-        return global_broadcast;
+        return globalBroadcast;
+    }
+
+    public static boolean isBroadcastGlobal_() {
+        return globalBroadcast_;
     }
 
     public static boolean isActionBar() {
-        return action_bar;
+        return actionBar;
+    }
+
+    public static boolean isActionBar_() {
+        return actionBar_;
+    }
+
+    public static boolean isRemovable() {
+        return removable;
     }
 
     static {

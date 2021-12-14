@@ -1,6 +1,6 @@
 ---
 name: EcoRanks
-version: 1.0.0
+version: 1.0.1
 author: pineypiney
 main: com.pineypiney.eco_ranks.EcoRanks
 api-version: 1.18
